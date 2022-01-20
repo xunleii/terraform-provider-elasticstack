@@ -1,4 +1,4 @@
-package index
+package cluster
 
 import (
 	"context"
@@ -252,11 +252,12 @@ func resourceComponentTemplateRead(ctx context.Context, d *schema.ResourceData, 
 	}
 
 	if tpl.ComponentTemplate.Template != nil {
-		template, diags := flattenTemplateData(tpl.ComponentTemplate.Template)
-		if diags.HasError() {
-			return diags
+		template, err := tpl.ComponentTemplate.Template.ToMap()
+		if err != nil {
+			return diag.FromErr(err)
 		}
-		if err := d.Set("template", template); err != nil {
+
+		if err := d.Set("template", []interface{}{template}); err != nil {
 			return diag.FromErr(err)
 		}
 	}

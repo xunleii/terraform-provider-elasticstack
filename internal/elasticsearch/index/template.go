@@ -334,11 +334,12 @@ func resourceIndexTemplateRead(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	if tpl.IndexTemplate.Template != nil {
-		template, diags := flattenTemplateData(tpl.IndexTemplate.Template)
-		if diags.HasError() {
-			return diags
+		template, err := tpl.IndexTemplate.Template.ToMap()
+		if err != nil {
+			return diag.FromErr(err)
 		}
-		if err := d.Set("template", template); err != nil {
+
+		if err := d.Set("template", []interface{}{template}); err != nil {
 			return diag.FromErr(err)
 		}
 	}
@@ -348,52 +349,6 @@ func resourceIndexTemplateRead(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	return diags
-}
-
-func flattenTemplateData(template *models.Template) ([]interface{}, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	tmpl := make(map[string]interface{})
-	if template.Mappings != nil {
-		m, err := json.Marshal(template.Mappings)
-		if err != nil {
-			return nil, diag.FromErr(err)
-		}
-		tmpl["mappings"] = string(m)
-	}
-	if template.Settings != nil {
-		s, err := json.Marshal(template.Settings)
-		if err != nil {
-			return nil, diag.FromErr(err)
-		}
-		tmpl["settings"] = string(s)
-	}
-
-	if template.Aliases != nil {
-		aliases := make([]interface{}, 0)
-		for k, v := range template.Aliases {
-			alias := make(map[string]interface{})
-			alias["name"] = k
-
-			if v.Filter != nil {
-				f, err := json.Marshal(v.Filter)
-				if err != nil {
-					return nil, diag.FromErr(err)
-				}
-				alias["filter"] = string(f)
-			}
-
-			alias["index_routing"] = v.IndexRouting
-			alias["is_hidden"] = v.IsHidden
-			alias["is_write_index"] = v.IsWriteIndex
-			alias["routing"] = v.Routing
-			alias["search_routing"] = v.SearchRouting
-
-			aliases = append(aliases, alias)
-		}
-		tmpl["aliases"] = aliases
-	}
-
-	return []interface{}{tmpl}, diags
 }
 
 func resourceIndexTemplateDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {

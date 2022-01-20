@@ -1,4 +1,4 @@
-package index_test
+package cluster_test
 
 import (
 	"fmt"
