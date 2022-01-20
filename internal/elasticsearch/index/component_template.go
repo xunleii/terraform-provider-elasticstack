@@ -13,59 +13,21 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-func ResourceTemplate() *schema.Resource {
-	templateSchema := map[string]*schema.Schema{
+func ResourceComponentTemplate() *schema.Resource {
+	// NOTE: component_template and index_template uses the same schema
+	componentTemplateSchema := map[string]*schema.Schema{
 		"name": {
-			Description: "Name of the index template to create.",
+			Description: "Name of the component template to create.",
 			Type:        schema.TypeString,
 			Required:    true,
 			ForceNew:    true,
 		},
-		"composed_of": {
-			Description: "An ordered list of component template names.",
-			Type:        schema.TypeList,
-			Optional:    true,
-			Computed:    true,
-			Elem: &schema.Schema{
-				Type: schema.TypeString,
-			},
-		},
-		"data_stream": {
-			Description: "If this object is included, the template is used to create data streams and their backing indices. Supports an empty object.",
-			Type:        schema.TypeList,
-			Optional:    true,
-			MaxItems:    1,
-			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"hidden": {
-						Description: "If true, the data stream is hidden.",
-						Type:        schema.TypeBool,
-						Default:     false,
-						Optional:    true,
-					},
-				},
-			},
-		},
-		"index_patterns": {
-			Description: "Array of wildcard (*) expressions used to match the names of data streams and indices during creation.",
-			Type:        schema.TypeSet,
-			Required:    true,
-			Elem: &schema.Schema{
-				Type: schema.TypeString,
-			},
-		},
 		"metadata": {
-			Description:      "Optional user metadata about the index template.",
+			Description:      "Optional user metadata about the component template.",
 			Type:             schema.TypeString,
 			Optional:         true,
 			ValidateFunc:     validation.StringIsJSON,
 			DiffSuppressFunc: utils.DiffJsonSuppress,
-		},
-		"priority": {
-			Description:  "Priority to determine index template precedence when a new data stream or index is created.",
-			Type:         schema.TypeInt,
-			ValidateFunc: validation.IntAtLeast(0),
-			Optional:     true,
 		},
 		"template": {
 			Description: "Template to be applied. It may optionally include an aliases, mappings, or settings configuration.",
@@ -140,78 +102,49 @@ func ResourceTemplate() *schema.Resource {
 			},
 		},
 		"version": {
-			Description: "Version number used to manage index templates externally.",
+			Description: "Version number used to manage component templates externally.",
 			Type:        schema.TypeInt,
 			Optional:    true,
 		},
 	}
 
-	utils.AddConnectionSchema(templateSchema)
+	utils.AddConnectionSchema(componentTemplateSchema)
 
 	return &schema.Resource{
-		Description: "Creates or updates an index template. Index templates define settings, mappings, and aliases that can be applied automatically to new indices. See, https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-template.html",
+		Description: "Creates or updates a component template. Component templates are building blocks for constructing index templates that specify index mappings, settings, and aliases. See, https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-component-template.html",
 
-		CreateContext: resourceIndexTemplatePut,
-		UpdateContext: resourceIndexTemplatePut,
-		ReadContext:   resourceIndexTemplateRead,
-		DeleteContext: resourceIndexTemplateDelete,
+		CreateContext: resourceComponentTemplatePut,
+		UpdateContext: resourceComponentTemplatePut,
+		ReadContext:   resourceComponentTemplateRead,
+		DeleteContext: resourceComponentTemplateDelete,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
 
-		Schema: templateSchema,
+		Schema: componentTemplateSchema,
 	}
 }
 
-func resourceIndexTemplatePut(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func resourceComponentTemplatePut(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client, err := clients.NewApiClient(d, meta)
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	templateId := d.Get("name").(string)
-	id, diags := client.ID(templateId)
+	componentId := d.Get("name").(string)
+	id, diags := client.ID(componentId)
 	if diags.HasError() {
 		return diags
 	}
-	var indexTemplate models.IndexTemplate
-	indexTemplate.Name = templateId
-
-	compsOf := make([]string, 0)
-	if v, ok := d.GetOk("composed_of"); ok {
-		for _, c := range v.([]interface{}) {
-			compsOf = append(compsOf, c.(string))
-		}
-	}
-	indexTemplate.ComposedOf = compsOf
-
-	if v, ok := d.GetOk("data_stream"); ok {
-		// only one definition of stream allowed
-		stream := v.([]interface{})[0].(map[string]interface{})
-		indexTemplate.DataStream = stream
-	}
-
-	if v, ok := d.GetOk("index_patterns"); ok {
-		definedIndPats := v.(*schema.Set)
-		indPats := make([]string, definedIndPats.Len())
-		for i, p := range definedIndPats.List() {
-			indPats[i] = p.(string)
-		}
-		indexTemplate.IndexPatterns = indPats
-	}
+	var componentTemplate models.ComponentTemplate
+	componentTemplate.Name = componentId
 
 	if v, ok := d.GetOk("metadata"); ok {
 		metadata := make(map[string]interface{})
 		if err := json.NewDecoder(strings.NewReader(v.(string))).Decode(&metadata); err != nil {
 			return diag.FromErr(err)
 		}
-		indexTemplate.Meta = metadata
-	}
-
-	if v, ok := d.GetOk("priority"); ok {
-		definedPr := v.(int)
-		indexTemplate.Priority = &definedPr
+		componentTemplate.Meta = metadata
 	}
 
 	if v, ok := d.GetOk("template"); ok {
@@ -270,23 +203,23 @@ func resourceIndexTemplatePut(ctx context.Context, d *schema.ResourceData, meta 
 			}
 		}
 
-		indexTemplate.Template = &templ
+		componentTemplate.Template = &templ
 	}
 
 	if v, ok := d.GetOk("version"); ok {
 		definedVer := v.(int)
-		indexTemplate.Version = &definedVer
+		componentTemplate.Version = &definedVer
 	}
 
-	if diags := client.PutElasticsearchIndexTemplate(&indexTemplate); diags.HasError() {
+	if diags := client.PutElasticsearchComponentTemplate(&componentTemplate); diags.HasError() {
 		return diags
 	}
 
 	d.SetId(id.String())
-	return resourceIndexTemplateRead(ctx, d, meta)
+	return resourceComponentTemplateRead(ctx, d, meta)
 }
 
-func resourceIndexTemplateRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+func resourceComponentTemplateRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	client, err := clients.NewApiClient(d, meta)
 	if err != nil {
@@ -298,7 +231,7 @@ func resourceIndexTemplateRead(ctx context.Context, d *schema.ResourceData, meta
 	}
 	templateId := compId.ResourceId
 
-	tpl, diags := client.GetElasticsearchIndexTemplate(templateId)
+	tpl, diags := client.GetElasticsearchComponentTemplate(templateId)
 	if diags.HasError() {
 		return diags
 	}
@@ -307,21 +240,9 @@ func resourceIndexTemplateRead(ctx context.Context, d *schema.ResourceData, meta
 	if err := d.Set("name", tpl.Name); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("composed_of", tpl.IndexTemplate.ComposedOf); err != nil {
-		return diag.FromErr(err)
-	}
-	if tpl.IndexTemplate.DataStream != nil {
-		ds := make([]interface{}, 0)
-		ds = append(ds, tpl.IndexTemplate.DataStream)
-		if err := d.Set("data_stream", ds); err != nil {
-			return diag.FromErr(err)
-		}
-	}
-	if err := d.Set("index_patterns", tpl.IndexTemplate.IndexPatterns); err != nil {
-		return diag.FromErr(err)
-	}
-	if tpl.IndexTemplate.Meta != nil {
-		metadata, err := json.Marshal(tpl.IndexTemplate.Meta)
+
+	if tpl.ComponentTemplate.Meta != nil {
+		metadata, err := json.Marshal(tpl.ComponentTemplate.Meta)
 		if err != nil {
 			return diag.FromErr(err)
 		}
@@ -329,12 +250,9 @@ func resourceIndexTemplateRead(ctx context.Context, d *schema.ResourceData, meta
 			return diag.FromErr(err)
 		}
 	}
-	if err := d.Set("priority", tpl.IndexTemplate.Priority); err != nil {
-		return diag.FromErr(err)
-	}
 
-	if tpl.IndexTemplate.Template != nil {
-		template, diags := flattenTemplateData(tpl.IndexTemplate.Template)
+	if tpl.ComponentTemplate.Template != nil {
+		template, diags := flattenTemplateData(tpl.ComponentTemplate.Template)
 		if diags.HasError() {
 			return diags
 		}
@@ -343,60 +261,14 @@ func resourceIndexTemplateRead(ctx context.Context, d *schema.ResourceData, meta
 		}
 	}
 
-	if err := d.Set("version", tpl.IndexTemplate.Version); err != nil {
+	if err := d.Set("version", tpl.ComponentTemplate.Version); err != nil {
 		return diag.FromErr(err)
 	}
 
 	return diags
 }
 
-func flattenTemplateData(template *models.Template) ([]interface{}, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	tmpl := make(map[string]interface{})
-	if template.Mappings != nil {
-		m, err := json.Marshal(template.Mappings)
-		if err != nil {
-			return nil, diag.FromErr(err)
-		}
-		tmpl["mappings"] = string(m)
-	}
-	if template.Settings != nil {
-		s, err := json.Marshal(template.Settings)
-		if err != nil {
-			return nil, diag.FromErr(err)
-		}
-		tmpl["settings"] = string(s)
-	}
-
-	if template.Aliases != nil {
-		aliases := make([]interface{}, 0)
-		for k, v := range template.Aliases {
-			alias := make(map[string]interface{})
-			alias["name"] = k
-
-			if v.Filter != nil {
-				f, err := json.Marshal(v.Filter)
-				if err != nil {
-					return nil, diag.FromErr(err)
-				}
-				alias["filter"] = string(f)
-			}
-
-			alias["index_routing"] = v.IndexRouting
-			alias["is_hidden"] = v.IsHidden
-			alias["is_write_index"] = v.IsWriteIndex
-			alias["routing"] = v.Routing
-			alias["search_routing"] = v.SearchRouting
-
-			aliases = append(aliases, alias)
-		}
-		tmpl["aliases"] = aliases
-	}
-
-	return []interface{}{tmpl}, diags
-}
-
-func resourceIndexTemplateDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+func resourceComponentTemplateDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	client, err := clients.NewApiClient(d, meta)
 	if err != nil {
@@ -408,7 +280,7 @@ func resourceIndexTemplateDelete(ctx context.Context, d *schema.ResourceData, me
 	if diags.HasError() {
 		return diags
 	}
-	if diags := client.DeleteElasticsearchIndexTemplate(compId.ResourceId); diags.HasError() {
+	if diags := client.DeleteElasticsearchComponentTemplate(compId.ResourceId); diags.HasError() {
 		return diags
 	}
 	d.SetId("")

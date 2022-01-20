@@ -52,6 +52,13 @@ type IndexTemplate struct {
 	Version       *int                   `json:"version,omitempty"`
 }
 
+type ComponentTemplate struct {
+	Name     string                 `json:"-"`
+	Meta     map[string]interface{} `json:"_meta,omitempty"`
+	Template *Template              `json:"template,omitempty"`
+	Version  *int                   `json:"version,omitempty"`
+}
+
 type Template struct {
 	Aliases  map[string]TemplateAlias `json:"aliases,omitempty"`
 	Mappings map[string]interface{}   `json:"mappings,omitempty"`
@@ -66,6 +73,15 @@ type TemplateAlias struct {
 	IsWriteIndex  bool                   `json:"is_write_index,omitempty"`
 	Routing       string                 `json:"routing,omitempty"`
 	SearchRouting string                 `json:"search_routing,omitempty"`
+}
+
+type ComponentTemplatesResponse struct {
+	ComponentTemplates []ComponentTemplateResponse `json:"component_templates"`
+}
+
+type ComponentTemplateResponse struct {
+	Name              string            `json:"name"`
+	ComponentTemplate ComponentTemplate `json:"component_template"`
 }
 
 type IndexTemplatesResponse struct {
