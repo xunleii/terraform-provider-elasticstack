@@ -107,11 +107,11 @@ type SnapshotPolicy struct {
 	Config     *SnapshotPolicyConfig `json:"config,omitempty"`
 	Name       string                `json:"name"`
 	Repository string                `json:"repository"`
-	Retention  *SnapshortRetention   `json:"retention,omitempty"`
+	Retention  *SnapshotRetention    `json:"retention,omitempty"`
 	Schedule   string                `json:"schedule"`
 }
 
-type SnapshortRetention struct {
+type SnapshotRetention struct {
 	ExpireAfter *string `json:"expire_after,omitempty"`
 	MaxCount    *int    `json:"max_count,omitempty"`
 	MinCount    *int    `json:"min_count,omitempty"`

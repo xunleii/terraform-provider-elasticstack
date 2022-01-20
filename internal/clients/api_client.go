@@ -435,7 +435,7 @@ func (a *ApiClient) GetElasticsearchIndexTemplate(templateName string) (*models.
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
 			Summary:  "Wrong number of templates returned",
-			Detail:   fmt.Sprintf("Elasticsearch API returned %d when requsted '%s' template.", len(indexTemplates.IndexTemplates), templateName),
+			Detail:   fmt.Sprintf("Elasticsearch API returned %d when requested '%s' template.", len(indexTemplates.IndexTemplates), templateName),
 		})
 		return nil, diags
 	}
